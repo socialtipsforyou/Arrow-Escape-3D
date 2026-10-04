@@ -1,0 +1,42 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Find and extract AI Studio ZIP
+        run: |
+          set -e
+          ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
+          echo "ZIP found: $ZIP_FILE"
+          test -n "$ZIP_FILE"
+          mkdir -p project
+          unzip -q "$ZIP_FILE" -d project
+
+      - name: Locate Android project
+        run: |
+          set -e
+          echo "Searching for Gradle project..."
+          find project -name gradlew -type f -print
+
+      - name: Build Debug APK
+        run: |
+          set -e
+          GRADLEW=$(find project -name gradlew -type f | head -n 1)
+          PROJECT_DIR=$(dirname "$GRADLEW")
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arrow-Escape-3D-APK
+          path: "**/build/outputs/apk/**/*.apk"
