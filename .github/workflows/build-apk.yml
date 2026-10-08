@@ -11,37 +11,76 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find and extract AI Studio ZIP
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Find AI Studio ZIP
         run: |
           set -e
-          ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
-          echo "ZIP found: $ZIP_FILE"
-          test -n "$ZIP_FILE"
+
+          ZIP_FILE=$(find . -maxdepth 3 -type f -name "*.zip" | head -n 1)
+
+          echo "ZIP FILE: $ZIP_FILE"
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: AI Studio ZIP not found"
+            exit 1
+          fi
+
           mkdir -p project
           unzip -q "$ZIP_FILE" -d project
 
-      - name: Locate Gradle project
+      - name: Locate Android Project
         run: |
           set -e
-          GRADLEW=$(find project -type f -name "gradlew" | head -n 1)
-          echo "Gradle wrapper: $GRADLEW"
-          test -n "$GRADLEW"
-          PROJECT_DIR=$(dirname "$GRADLEW")
+
+          echo "Searching for Gradle Android project..."
+
+          SETTINGS=$(find project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -n 1)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle / settings.gradle.kts not found"
+            echo "Files inside project:"
+            find project -maxdepth 4 -type f | head -n 200
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+
+          echo "SETTINGS FILE: $SETTINGS"
+          echo "PROJECT DIR: $PROJECT_DIR"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Build Debug APK
         run: |
           set -e
+
           cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug
+
+          echo "Building from:"
+          pwd
+
+          echo "Project files:"
+          ls -la
+
+          gradle assembleDebug --stacktrace
 
       - name: Find APK
         run: |
           set -e
+
           APK=$(find "$PROJECT_DIR" -type f -name "*.apk" | head -n 1)
-          echo "APK found: $APK"
-          test -n "$APK"
+
+          echo "APK: $APK"
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK was not generated"
+            exit 1
+          fi
+
           mkdir -p build-output
           cp "$APK" build-output/Arrow-Escape-3D.apk
 
